@@ -1,0 +1,41 @@
+from flask import Flask, jsonify, redirect, request
+import hashlib
+
+app = Flask(__name__)
+url_mappings = {}  # Dictionary to store URL mappings
+
+@app.route('/shorten', methods=['POST'])
+def shorten_url():
+    original_url = request.form.get('url')
+
+    if original_url in url_mappings:
+        return jsonify({'short_url': url_mappings[original_url]})
+
+    # Generate a shortened URL using the MD5 hash of the original URL
+    hash_object = hashlib.md5(original_url.encode())
+    short_url = hash_object.hexdigest()[:8]  # Take the first 8 characters as the shortened URL
+
+    url_mappings[original_url] = short_url
+    return jsonify({'short_url': short_url})
+
+@app.route('/<short_url>')
+def redirect_to_original_url(short_url):
+    for original_url, mapped_short_url in url_mappings.items():
+        if mapped_short_url == short_url:
+            return redirect(original_url)
+
+    return jsonify({'error': 'Short URL not found'}), 404
+
+@app.route('/metrics')
+def get_top_domains():
+    domain_counts = {}
+
+    for original_url in url_mappings:
+        domain = original_url.split('/')[2]
+        domain_counts[domain] = domain_counts.get(domain, 0) + 1
+
+    top_domains = sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+    return jsonify({'top_domains': top_domains})
+
+if __name__ == '__main__':
+    app.run()
